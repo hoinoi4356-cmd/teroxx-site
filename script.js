@@ -5,6 +5,7 @@ const LINKS = {
   tiktok: "https://www.tiktok.com/@teroxxrust",
   twitch: "https://www.twitch.tv/1teroxx",
   steam: "https://steamcommunity.com/profiles/76561199860420181/",
+  youtube: "https://youtube.com/@teroxx-330?si=3Jh8Ex_LxcTahWIo",
 };
 
 for (const [key, url] of Object.entries(LINKS)) {
@@ -21,7 +22,7 @@ function setViews(n) {
 
 async function realCount() {
   try {
-    const res = await fetch("https://api.countapi.xyz/hit/teroxx/views", { mode: "cors" });
+    const res = await fetch("https://abacus.jasoncameron.dev/hit/teroxx/views", { mode: "cors" });
     const data = await res.json();
     setViews(data.value);
   } catch (e) {
