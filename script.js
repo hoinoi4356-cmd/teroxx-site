@@ -1,7 +1,7 @@
 const NICK = "TeroxX";
 
 const LINKS = {
-  discord: "https://discord.com/users/1439618325293432962",
+  discord: "https://discord.gg/6AmJWKGUPp",
   tiktok: "https://www.tiktok.com/@teroxxrust",
   twitch: "https://www.twitch.tv/1teroxx",
   steam: "https://steamcommunity.com/profiles/76561199860420181/",
