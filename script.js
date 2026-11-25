@@ -12,7 +12,7 @@ for (const [key, url] of Object.entries(LINKS)) {
   if (el) el.href = url;
 }
 
-// views counter — real global count via Abacus (never drops below last known value)
+// views counter — real global count via Abacus (never drops below 500+)
 const views = document.getElementById("views");
 const API = "https://abacus.jasoncameron.dev";
 const KEY = "teroxx/site-visits";
@@ -22,33 +22,9 @@ const BASE_VIEWS = 512;
 
 let shownViews = 0;
 
-function setViews(n, animate) {
-  if (!views) return;
-  const target = Number(n) || 0;
-  views.dataset.value = target;
-
-  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (!animate || reduce || document.hidden) {
-    shownViews = target;
-    views.textContent = target.toLocaleString("uk-UA");
-    return;
-  }
-
-  const from = shownViews;
-  const start = performance.now();
-  const duration = 900;
-
-  function tick(now) {
-    const p = Math.min(1, (now - start) / duration);
-    const eased = 1 - Math.pow(1 - p, 3);
-    shownViews = Math.round(from + (target - from) * eased);
-    views.textContent = shownViews.toLocaleString("uk-UA");
-    if (p < 1) requestAnimationFrame(tick);
-  }
-
-  requestAnimationFrame(tick);
-}
-
+// ════════════════════════════════════════════════════════════════
+// 1️⃣  Set initial value from cached global count (never below 512)
+// ════════════════════════════════════════════════════════════════
 function cachedViews() {
   let stored = 0;
   try {
@@ -59,17 +35,23 @@ function cachedViews() {
   return Math.max(stored, BASE_VIEWS);
 }
 
+// ════════════════════════════════════════════════════════════════
+// 2️⃣  Save a value to global persistent storage
+// ════════════════════════════════════════════════════════════════
 function saveViews(value) {
   try {
     localStorage.setItem(GLOBAL_KEY, String(value));
   } catch (e) {
-    /* private mode */
+    /* private mode — ignore */
   }
 }
 
-async function fetchViews(endpoint) {
+// ════════════════════════════════════════════════════════════════
+// 3️⃣  Fetch the current Abacus count (with timeout)
+// ════════════════════════════════════════════════════════════════
+async function fetchAbacusValue(endpoint) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 9000);
+  const timer = setTimeout(() => controller.abort(), 15000);
 
   try {
     const res = await fetch(`${API}/${endpoint}/${KEY}?t=${Date.now()}`, {
@@ -79,13 +61,16 @@ async function fetchViews(endpoint) {
     if (!res.ok) throw new Error("http " + res.status);
     const data = await res.json();
     const value = Number(data.value);
-    if (!Number.isFinite(value) || value <= 0) throw new Error("bad value");
+    if (!Number.isFinite(value) || value < 0) throw new Error("bad value");
     return value;
   } finally {
     clearTimeout(timer);
   }
 }
 
+// ════════════════════════════════════════════════════════════════
+// 4️⃣  Sync the counter with Abacus (once per session)
+// ═════════════════════════════════════════════════════════════════
 async function syncViews() {
   let counted = false;
   try {
@@ -94,41 +79,50 @@ async function syncViews() {
     counted = false;
   }
 
-  let value = 0;
-
-  // 3 спроби: перша рахує візит (hit), решта лише читають (get) — без подвійного +1
-  for (let attempt = 0; attempt < 3 && !value; attempt += 1) {
-    const endpoint = !counted && attempt === 0 ? "hit" : "get";
+  // If we already counted this session, just read the current Abacus value
+  if (counted) {
     try {
-      value = await fetchViews(endpoint);
+      const value = await fetchAbacusValue("get");
+      saveViews(value);
+      setViews(value, true);
+      return;
     } catch (e) {
-      if (attempt < 2) await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
+      // API down — keep cached value, don't reset
+      setViews(cachedViews(), false);
+      return;
     }
   }
 
+  // First visit of the session → try "hit" to register the visit
   try {
-    if (!counted) sessionStorage.setItem("terox_counted", "1");
-  } catch (e) {
-    /* ignore */
-  }
-
-  if (value > 0) {
+    const value = await fetchAbacusValue("hit");
     saveViews(value);
-    setViews(Math.max(value, cachedViews()), true);
+    sessionStorage.setItem("terox_counted", "1");
+    setViews(value, true);
+    return;
+  } catch (e) {
+    // API completely down → keep cached value, don't reset to 0
+    setViews(cachedViews(), false);
+    // Still mark as counted so next read uses "get" instead of "hit"
+    try { sessionStorage.setItem("terox_counted", "1"); } catch (e) {}
     return;
   }
-
-  // API недоступний: тримаємо останнє відоме значення, але не нижче 500+
-  setViews(cachedViews(), false);
 }
 
+// ════════════════════════════════════════════════════════════════
+// 5️⃣  Initial render — cached value (never below 512)
+// ════════════════════════════════════════════════════════════════
+// Reset legacy key so we always use the new global store
 try {
   localStorage.removeItem(LEGACY_KEY);
 } catch (e) {
   /* ignore */
 }
 
+// Show cached value immediately (won't drop below 512)
 setViews(cachedViews(), false);
+
+// Then sync with Abacus in the background
 syncViews();
 
 // snowflakes
@@ -188,7 +182,7 @@ muteBtn.addEventListener("click", () => {
   muted = !muted;
   audio.muted = muted;
   if (muted) {
-    muteBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3Zm13.6 3 2.7-2.7-1.4-1.4-2.7 2.7-2.7-2.7-1.4 1.4 2.7 2.7-2.7 2.7 1.4 1.4 2.7-2.7 2.7 2.7 1.4-1.4-2.7-2.7Z"/></svg>';
+    muteBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3Zm13.6 3 2.7-2.7-1.4-1.4-2.7 2.7-2.7-2.7-1.4 1.4 2.7 2.7-2.7 2.7 1.4 1.4 2.7 2.7 1.4-1.4-2.7-2.7Z"/></svg>';
   } else {
     muteBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3Zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4Zm-2.5-8v2.1a7 7 0 0 1 0 11.8V20a9 9 0 0 0 0-16Z"/></svg>';
   }
