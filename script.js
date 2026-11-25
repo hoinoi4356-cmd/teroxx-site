@@ -18,30 +18,60 @@ const API = "https://abacus.jasoncameron.dev";
 const KEY = "teroxx/site-visits";
 const LOCAL_KEY = "terox_site_visits";
 
-function setViews(n) {
-  const num = Number(n) || 0;
-  views.textContent = num.toLocaleString("uk-UA");
-  views.dataset.value = num;
+let shownViews = 0;
+
+function setViews(n, animate) {
+  const target = Number(n) || 0;
+  views.dataset.value = target;
+
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!animate || reduce || document.hidden) {
+    shownViews = target;
+    views.textContent = target.toLocaleString("uk-UA");
+    return;
+  }
+
+  const from = shownViews;
+  const start = performance.now();
+  const duration = 900;
+
+  function tick(now) {
+    const p = Math.min(1, (now - start) / duration);
+    const eased = 1 - Math.pow(1 - p, 3);
+    shownViews = Math.round(from + (target - from) * eased);
+    views.textContent = shownViews.toLocaleString("uk-UA");
+    if (p < 1) requestAnimationFrame(tick);
+  }
+
+  requestAnimationFrame(tick);
 }
 
 async function syncViews() {
   const counted = sessionStorage.getItem("terox_counted");
   const endpoint = counted ? "get" : "hit";
 
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 7000);
+
   try {
-    const res = await fetch(`${API}/${endpoint}/${KEY}`, { cache: "no-store" });
+    const res = await fetch(`${API}/${endpoint}/${KEY}`, {
+      cache: "no-store",
+      signal: controller.signal,
+    });
     if (!res.ok) throw new Error("http " + res.status);
     const data = await res.json();
     const value = Number(data.value) || 0;
     localStorage.setItem(LOCAL_KEY, String(value));
-    setViews(value);
+    setViews(value, true);
     if (!counted) sessionStorage.setItem("terox_counted", "1");
   } catch (e) {
-    // offline / API down: keep counting locally so the number still grows
+    // offline / API down / timeout: keep counting locally so the number still grows
     const next = (parseInt(localStorage.getItem(LOCAL_KEY) || "0", 10) || 0) + 1;
     localStorage.setItem(LOCAL_KEY, String(next));
-    setViews(next);
+    setViews(next, true);
     if (!counted) sessionStorage.setItem("terox_counted", "1");
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -75,9 +105,18 @@ let muted = false;
 let lastVol = 0.5;
 audio.volume = 0.5;
 
-enter.addEventListener("click", () => {
+function enterSite() {
   enter.classList.add("hidden");
+  document.body.classList.add("entered");
   audio.play().catch(() => {});
+}
+
+enter.addEventListener("click", enterSite);
+enter.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    enterSite();
+  }
 });
 
 // volume slider
@@ -118,3 +157,45 @@ function typeTitle() {
   })();
 }
 typeTitle();
+
+// ---------- design v2 interactions ----------
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const canHover = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+
+// cursor glow that follows the pointer
+const glow = document.getElementById("cursorGlow");
+if (glow && canHover && !reduceMotion) {
+  let tx = window.innerWidth / 2;
+  let ty = window.innerHeight / 2;
+  let x = tx;
+  let y = ty;
+
+  window.addEventListener("pointermove", (e) => {
+    tx = e.clientX;
+    ty = e.clientY;
+  }, { passive: true });
+
+  (function follow() {
+    x += (tx - x) * 0.12;
+    y += (ty - y) * 0.12;
+    glow.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+    requestAnimationFrame(follow);
+  })();
+}
+
+// 3D tilt on the avatar
+const tilt = document.getElementById("tilt");
+if (tilt && canHover && !reduceMotion) {
+  const MAX = 16;
+
+  tilt.addEventListener("pointermove", (e) => {
+    const r = tilt.getBoundingClientRect();
+    const px = (e.clientX - r.left) / r.width - 0.5;
+    const py = (e.clientY - r.top) / r.height - 0.5;
+    tilt.style.transform = `rotateY(${px * MAX}deg) rotateX(${-py * MAX}deg)`;
+  });
+
+  tilt.addEventListener("pointerleave", () => {
+    tilt.style.transform = "";
+  });
+}
