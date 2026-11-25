@@ -2,9 +2,8 @@ const NICK = "TeroxX";
 
 const LINKS = {
   discord: "https://discord.gg/ZZXuqRfqgK",
-  tiktok: "https://www.tiktok.com/@teroxxrust",
-  twitch: "https://www.twitch.tv/1teroxx",
-  steam: "https://steamcommunity.com/profiles/76561199860420181/",
+  tiktok: "https://www.tiktok.com/@teroxx303",
+  steam: "https://steamcommunity.com/id/TeroxXo/",
   youtube: "https://www.youtube.com/@teroxX-330",
 };
 
@@ -13,33 +12,40 @@ for (const [key, url] of Object.entries(LINKS)) {
   if (el) el.href = url;
 }
 
-// views counter — real count via cloud API (fallback: localStorage)
+// views counter — real global count via cloud API (fallback: localStorage)
 const views = document.getElementById("views");
+const API = "https://abacus.jasoncameron.dev";
+const KEY = "teroxx/views";
 
 function setViews(n) {
-  views.textContent = (n || 0).toLocaleString();
+  const num = Number(n) || 0;
+  views.textContent = num.toLocaleString("uk-UA");
+  views.dataset.value = num;
 }
 
-async function realCount() {
+async function syncViews() {
+  const counted = sessionStorage.getItem("terox_counted");
+  const endpoint = counted ? "get" : "hit";
+
   try {
-    const res = await fetch("https://abacus.jasoncameron.dev/hit/teroxx/views", { mode: "cors" });
+    const res = await fetch(`${API}/${endpoint}/${KEY}`, { cache: "no-store" });
+    if (!res.ok) throw new Error("http " + res.status);
     const data = await res.json();
-    setViews(data.value);
+    const value = Number(data.value) || 0;
+    localStorage.setItem("terox_views", String(value));
+    setViews(value);
+    if (!counted) sessionStorage.setItem("terox_counted", "1");
   } catch (e) {
-    setViews(parseInt(localStorage.getItem("terox_views") || "1", 10));
+    // offline / API down: keep counting locally so the number still grows
+    const next = (parseInt(localStorage.getItem("terox_views") || "0", 10) || 0) + 1;
+    localStorage.setItem("terox_views", String(next));
+    setViews(next);
+    if (!counted) sessionStorage.setItem("terox_counted", "1");
   }
 }
 
-function viewCount() {
-  if (sessionStorage.getItem("terox_counted")) {
-    setViews(parseInt(localStorage.getItem("terox_views") || "1", 10));
-    return;
-  }
-  sessionStorage.setItem("terox_counted", "1");
-  realCount();
-}
-
-viewCount();
+setViews(localStorage.getItem("terox_views") || 0);
+syncViews();
 
 // snowflakes
 const snow = document.getElementById("snow");
