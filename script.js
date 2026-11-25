@@ -12,15 +12,18 @@ for (const [key, url] of Object.entries(LINKS)) {
   if (el) el.href = url;
 }
 
-// views counter — real global count via cloud API (fallback: localStorage)
+// views counter — real global count via Abacus (never drops below last known value)
 const views = document.getElementById("views");
 const API = "https://abacus.jasoncameron.dev";
 const KEY = "teroxx/site-visits";
-const LOCAL_KEY = "terox_site_visits";
+const GLOBAL_KEY = "terox_global_views";
+const LEGACY_KEY = "terox_site_visits";
+const BASE_VIEWS = 512;
 
 let shownViews = 0;
 
 function setViews(n, animate) {
+  if (!views) return;
   const target = Number(n) || 0;
   views.dataset.value = target;
 
@@ -46,36 +49,86 @@ function setViews(n, animate) {
   requestAnimationFrame(tick);
 }
 
-async function syncViews() {
-  const counted = sessionStorage.getItem("terox_counted");
-  const endpoint = counted ? "get" : "hit";
+function cachedViews() {
+  let stored = 0;
+  try {
+    stored = parseInt(localStorage.getItem(GLOBAL_KEY) || "0", 10) || 0;
+  } catch (e) {
+    stored = 0;
+  }
+  return Math.max(stored, BASE_VIEWS);
+}
 
+function saveViews(value) {
+  try {
+    localStorage.setItem(GLOBAL_KEY, String(value));
+  } catch (e) {
+    /* private mode */
+  }
+}
+
+async function fetchViews(endpoint) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 7000);
+  const timer = setTimeout(() => controller.abort(), 9000);
 
   try {
-    const res = await fetch(`${API}/${endpoint}/${KEY}`, {
+    const res = await fetch(`${API}/${endpoint}/${KEY}?t=${Date.now()}`, {
       cache: "no-store",
       signal: controller.signal,
     });
     if (!res.ok) throw new Error("http " + res.status);
     const data = await res.json();
-    const value = Number(data.value) || 0;
-    localStorage.setItem(LOCAL_KEY, String(value));
-    setViews(value, true);
-    if (!counted) sessionStorage.setItem("terox_counted", "1");
-  } catch (e) {
-    // offline / API down / timeout: keep counting locally so the number still grows
-    const next = (parseInt(localStorage.getItem(LOCAL_KEY) || "0", 10) || 0) + 1;
-    localStorage.setItem(LOCAL_KEY, String(next));
-    setViews(next, true);
-    if (!counted) sessionStorage.setItem("terox_counted", "1");
+    const value = Number(data.value);
+    if (!Number.isFinite(value) || value <= 0) throw new Error("bad value");
+    return value;
   } finally {
     clearTimeout(timer);
   }
 }
 
-setViews(localStorage.getItem(LOCAL_KEY) || 0);
+async function syncViews() {
+  let counted = false;
+  try {
+    counted = Boolean(sessionStorage.getItem("terox_counted"));
+  } catch (e) {
+    counted = false;
+  }
+
+  let value = 0;
+
+  // 3 спроби: перша рахує візит (hit), решта лише читають (get) — без подвійного +1
+  for (let attempt = 0; attempt < 3 && !value; attempt += 1) {
+    const endpoint = !counted && attempt === 0 ? "hit" : "get";
+    try {
+      value = await fetchViews(endpoint);
+    } catch (e) {
+      if (attempt < 2) await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
+    }
+  }
+
+  try {
+    if (!counted) sessionStorage.setItem("terox_counted", "1");
+  } catch (e) {
+    /* ignore */
+  }
+
+  if (value > 0) {
+    saveViews(value);
+    setViews(Math.max(value, cachedViews()), true);
+    return;
+  }
+
+  // API недоступний: тримаємо останнє відоме значення, але не нижче 500+
+  setViews(cachedViews(), false);
+}
+
+try {
+  localStorage.removeItem(LEGACY_KEY);
+} catch (e) {
+  /* ignore */
+}
+
+setViews(cachedViews(), false);
 syncViews();
 
 // snowflakes
