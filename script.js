@@ -15,7 +15,8 @@ for (const [key, url] of Object.entries(LINKS)) {
 // views counter — real global count via cloud API (fallback: localStorage)
 const views = document.getElementById("views");
 const API = "https://abacus.jasoncameron.dev";
-const KEY = "teroxx/views";
+const KEY = "teroxx/site-visits";
+const LOCAL_KEY = "terox_site_visits";
 
 function setViews(n) {
   const num = Number(n) || 0;
@@ -32,19 +33,19 @@ async function syncViews() {
     if (!res.ok) throw new Error("http " + res.status);
     const data = await res.json();
     const value = Number(data.value) || 0;
-    localStorage.setItem("terox_views", String(value));
+    localStorage.setItem(LOCAL_KEY, String(value));
     setViews(value);
     if (!counted) sessionStorage.setItem("terox_counted", "1");
   } catch (e) {
     // offline / API down: keep counting locally so the number still grows
-    const next = (parseInt(localStorage.getItem("terox_views") || "0", 10) || 0) + 1;
-    localStorage.setItem("terox_views", String(next));
+    const next = (parseInt(localStorage.getItem(LOCAL_KEY) || "0", 10) || 0) + 1;
+    localStorage.setItem(LOCAL_KEY, String(next));
     setViews(next);
     if (!counted) sessionStorage.setItem("terox_counted", "1");
   }
 }
 
-setViews(localStorage.getItem("terox_views") || 0);
+setViews(localStorage.getItem(LOCAL_KEY) || 0);
 syncViews();
 
 // snowflakes
