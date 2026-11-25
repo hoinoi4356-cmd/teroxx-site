@@ -199,3 +199,22 @@ if (tilt && canHover && !reduceMotion) {
     tilt.style.transform = "";
   });
 }
+// glitch on the name, at random intervals
+const glitchEl = document.querySelector(".glitch");
+if (glitchEl && !reduceMotion) {
+  let glitchTimer = null;
+
+  function scheduleGlitch() {
+    clearTimeout(glitchTimer);
+    if (document.hidden) return;
+
+    glitchTimer = setTimeout(() => {
+      glitchEl.classList.add("is-glitching");
+      setTimeout(() => glitchEl.classList.remove("is-glitching"), 420);
+      scheduleGlitch();
+    }, 4500 + Math.random() * 4500);
+  }
+
+  document.addEventListener("visibilitychange", scheduleGlitch);
+  scheduleGlitch();
+}
