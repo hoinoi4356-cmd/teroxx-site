@@ -1,11 +1,11 @@
 const NICK = "TeroxX";
 
 const LINKS = {
-  discord: "https://discord.gg/6AmJWKGUPp",
+  discord: "https://discord.gg/ZZXuqRfqgK",
   tiktok: "https://www.tiktok.com/@teroxxrust",
   twitch: "https://www.twitch.tv/1teroxx",
   steam: "https://steamcommunity.com/profiles/76561199860420181/",
-  youtube: "https://youtube.com/@teroxx-330?si=3Jh8Ex_LxcTahWIo",
+  youtube: "https://www.youtube.com/@teroxX-330",
 };
 
 for (const [key, url] of Object.entries(LINKS)) {
