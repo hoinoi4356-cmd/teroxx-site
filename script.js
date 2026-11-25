@@ -40,21 +40,10 @@ function setViews(n, animate) {
     const eased = 1 - Math.pow(1 - p, 3);
     shownViews = Math.round(from + (target - from) * eased);
     views.textContent = shownViews.toLocaleString("uk-UA");
-    if (p < 1) {
-      requestAnimationFrame(tick);
-    } else {
-      pulseViews();
-    }
+    if (p < 1) requestAnimationFrame(tick);
   }
 
   requestAnimationFrame(tick);
-}
-
-function pulseViews() {
-  views.classList.remove("pulse");
-  void views.offsetWidth;
-  views.classList.add("pulse");
-  setTimeout(() => views.classList.remove("pulse"), 700);
 }
 
 async function syncViews() {
@@ -120,7 +109,6 @@ function enterSite() {
   enter.classList.add("hidden");
   document.body.classList.add("entered");
   audio.play().catch(() => {});
-  startEq();
 }
 
 enter.addEventListener("click", enterSite);
@@ -229,105 +217,4 @@ if (glitchEl && !reduceMotion) {
 
   document.addEventListener("visibilitychange", scheduleGlitch);
   scheduleGlitch();
-}
-
-// ---------- audio equalizer ----------
-const eq = document.getElementById("eq");
-const eqBars = [];
-
-if (eq) {
-  for (let i = 0; i < 16; i++) {
-    const bar = document.createElement("i");
-    eq.appendChild(bar);
-    eqBars.push(bar);
-  }
-}
-
-let analyser = null;
-let freqData = null;
-
-function loopEq() {
-  if (!document.hidden && analyser) {
-    analyser.getByteFrequencyData(freqData);
-    for (let i = 0; i < eqBars.length; i++) {
-      const v = (freqData[i + 1] || 0) / 255;
-      eqBars[i].style.transform = "scaleY(" + Math.max(0.08, v) + ")";
-    }
-  }
-  requestAnimationFrame(loopEq);
-}
-
-function startEq() {
-  if (!eq || analyser) return;
-  const AC = window.AudioContext || window.webkitAudioContext;
-  if (!AC) return;
-
-  try {
-    const ctx = new AC();
-    const src = ctx.createMediaElementSource(audio);
-    analyser = ctx.createAnalyser();
-    analyser.fftSize = 64;
-    analyser.smoothingTimeConstant = 0.75;
-    src.connect(analyser);
-    analyser.connect(ctx.destination);
-    freqData = new Uint8Array(analyser.frequencyBinCount);
-    eq.classList.add("on");
-    loopEq();
-  } catch (e) {
-    /* audio graph unavailable — keep the site working */
-  }
-}
-
-// ---------- ripple on social icons ----------
-document.querySelectorAll(".soc").forEach((soc) => {
-  soc.addEventListener("pointerdown", (e) => {
-    const rect = soc.getBoundingClientRect();
-    const size = Math.max(rect.width, rect.height) * 1.9;
-    const wave = document.createElement("span");
-    wave.className = "ripple";
-    wave.style.width = size + "px";
-    wave.style.height = size + "px";
-    wave.style.left = e.clientX - rect.left + "px";
-    wave.style.top = e.clientY - rect.top + "px";
-    soc.appendChild(wave);
-    setTimeout(() => wave.remove(), 650);
-  });
-});
-
-// ---------- magnetic social icons ----------
-const socials = document.getElementById("socials");
-
-if (socials && canHover && !reduceMotion) {
-  const items = Array.from(socials.querySelectorAll(".soc"));
-  const RADIUS = 90;
-
-  socials.addEventListener("pointermove", (e) => {
-    items.forEach((el) => {
-      const r = el.getBoundingClientRect();
-      const dx = e.clientX - (r.left + r.width / 2);
-      const dy = e.clientY - (r.top + r.height / 2);
-      const dist = Math.hypot(dx, dy) || 1;
-
-      if (dist < RADIUS) {
-        const power = (1 - dist / RADIUS) * 10;
-        el.style.transform =
-          "translate(" + (dx / dist) * power + "px, " + ((dy / dist) * power - 3) + "px)";
-      } else {
-        el.style.transform = "";
-      }
-    });
-  }, { passive: true });
-
-  socials.addEventListener("pointerleave", () => {
-    items.forEach((el) => (el.style.transform = ""));
-  });
-}
-
-// ---------- snow parallax ----------
-if (snow && canHover && !reduceMotion) {
-  window.addEventListener("pointermove", (e) => {
-    const x = (e.clientX / window.innerWidth - 0.5) * 18;
-    const y = (e.clientY / window.innerHeight - 0.5) * 18;
-    snow.style.transform = "translate(" + x + "px, " + y + "px)";
-  }, { passive: true });
 }
