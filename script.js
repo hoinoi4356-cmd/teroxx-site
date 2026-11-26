@@ -12,7 +12,7 @@ for (const [key, url] of Object.entries(LINKS)) {
   if (el) el.href = url;
 }
 
-// views counter — real global count via Abacus (never drops below 500+)
+// views counter — real global count via Abacus (revamped 2026-11-26)
 const views = document.getElementById("views");
 const API = "https://abacus.jasoncameron.dev";
 const KEY = "teroxx/site-visits";
